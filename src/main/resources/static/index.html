@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MCAP - Minecraft Account Pooler</title>
-    <link rel="icon" href="/skin.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -94,52 +93,6 @@
                 <div class="export-actions">
                     <button class="btn btn-primary" onclick="doExport()">Download .txt</button>
                     <button class="btn btn-secondary" onclick="copyExport()">Copy to Clipboard</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Skin modal -->
-    <div class="modal-overlay modal-overlay-dim" id="skinModal" onclick="if (event.target === this) closeSkinModal()">
-        <div class="modal modal-skin" role="dialog" aria-modal="true" aria-labelledby="skinModalTitle" onclick="event.stopPropagation()">
-            <div class="modal-header skin-modal-header">
-                <h2 id="skinModalTitle">Skin</h2>
-                <button type="button" class="modal-close" onclick="closeSkinModal()" aria-label="Close">&times;</button>
-            </div>
-            <div class="modal-body skin-modal-body" id="skinModalBody">
-                <div class="skin-option" id="skinOptionUrl">
-                    <label class="skin-option-label" for="skinUrlInput">URL</label>
-                    <input type="url" class="skin-input" id="skinUrlInput" placeholder="https://..." autocomplete="off">
-                </div>
-                <div class="skin-option" id="skinOptionFile">
-                    <label class="skin-option-label" for="skinFileChooseBtn">Upload file</label>
-                    <div class="skin-file-row">
-                        <input type="file" class="skin-file-input-hidden" id="skinFileInput" accept="image/png,image/jpeg,.png,.jpg,.jpeg" tabindex="-1">
-                        <button type="button" class="btn btn-sm btn-secondary" id="skinFileChooseBtn" onclick="openSkinFilePicker()">Choose File</button>
-                        <button type="button" class="skin-file-clear btn btn-sm btn-secondary" id="skinFileClearBtn" onclick="clearSkinFile()" aria-label="Clear file" title="Clear selection to choose another file" hidden>&times;</button>
-                    </div>
-                </div>
-                <div class="skin-option" id="skinOptionUsername">
-                    <label class="skin-option-label" for="skinUsernameInput">Skin stealer</label>
-                    <input type="text" class="skin-input" id="skinUsernameInput" placeholder="Minecraft username" autocomplete="off" spellcheck="false">
-                </div>
-                <div class="skin-option" id="skinOptionVariant">
-                    <label class="skin-option-label" for="skinVariantSelect">Arm model</label>
-                    <select class="skin-input" id="skinVariantSelect" aria-label="Skin arm model">
-                        <option value="classic">Classic (Steve)</option>
-                        <option value="slim">Slim (Alex)</option>
-                    </select>
-                </div>
-                <div class="skin-modal-actions">
-                    <button type="button" class="btn btn-secondary" id="skinPreviewBtn" onclick="skinModalPreview()">Preview</button>
-                    <button type="button" class="btn btn-primary" id="skinLoadBtn" onclick="skinModalLoad()">Load</button>
-                </div>
-                <div class="skin-preview-section" id="skinPreviewSection" hidden>
-                    <div class="skin-preview-heading">3D preview</div>
-                    <div class="skin-preview-canvas-wrap" id="skinPreviewCanvasWrap">
-                        <canvas id="skinPreviewCanvas" width="320" height="400"></canvas>
-                    </div>
-                    <p class="skin-preview-hint">Drag to rotate · scroll to zoom</p>
                 </div>
             </div>
         </div>
