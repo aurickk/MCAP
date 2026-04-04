@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MCAP - Minecraft Account Pooler</title>
+    <title>MCAP</title>
+    <link rel="icon" type="image/png" href="/icon.png">
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
     <header>
         <div class="header-left">
+            <img src="/icon.png" alt="MCAP" class="header-icon">
             <h1>MCAP</h1>
             <span class="subtitle">Minecraft Account Pooler</span>
         </div>
@@ -18,23 +20,25 @@
     <main>
         <div class="toolbar">
             <button class="btn btn-primary" onclick="openLoginModal()">+ Add Account</button>
-            <button class="btn btn-secondary" onclick="openExportModal()">Export</button>
-            <button class="btn btn-secondary" onclick="loadAccounts()">Refresh</button>
+            <div class="toolbar-separator hidden" id="exportSeparator"></div>
+            <button class="btn btn-sm btn-secondary hidden" id="exportTxtBtn" onclick="doExport()">Export .txt</button>
+            <button class="btn btn-sm btn-secondary hidden" id="copyExportBtn" onclick="copyExport()">Copy Export</button>
         </div>
 
         <div class="table-container">
             <table id="accountTable">
                 <thead>
                     <tr>
+                        <th class="checkbox-col"><input type="checkbox" id="selectAllCheck" onchange="toggleSelectAll(this)" title="Select all"></th>
                         <th>Player</th>
                         <th>UUID</th>
-                        <th>Token Expiry</th>
+                        <th class="expiry-col">Token Expiry</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="accountBody">
                     <tr class="empty-row">
-                        <td colspan="4">No accounts yet. Click "Add Account" to get started.</td>
+                        <td colspan="5">No accounts yet. Click "Add Account" to get started.</td>
                     </tr>
                 </tbody>
             </table>
@@ -46,19 +50,20 @@
         <div class="modal">
             <div class="modal-header">
                 <h2>Add Microsoft Account</h2>
-                <button class="modal-close" onclick="closeLoginModal()">&times;</button>
+                <button class="modal-close" onclick="closeLoginModal()"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg></button>
             </div>
             <div class="modal-body" id="loginContent">
-                <div class="login-start" id="loginStart">
-                    <p>Sign in with your Microsoft account to add it to the pool.</p>
-                    <button class="btn btn-primary" onclick="startLogin()">Start Login</button>
-                </div>
                 <div class="login-code hidden" id="loginCode">
                     <p>Open the link below and enter the code:</p>
                     <div class="device-code" id="deviceCode">--------</div>
                     <div class="login-link-actions">
                         <a id="verificationLink" href="#" target="_blank" class="btn btn-secondary">Open Link</a>
-                        <button class="btn btn-secondary" onclick="copyLoginLink()">Copy Link</button>
+                        <button class="btn btn-sm btn-secondary btn-icon" onclick="copyLoginLink()" title="Copy link">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/>
+                                <path d="M10.5 5.5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2"/>
+                            </svg>
+                        </button>
                     </div>
                     <div class="spinner-container">
                         <div class="spinner"></div>
@@ -66,33 +71,12 @@
                     </div>
                 </div>
                 <div class="login-success hidden" id="loginSuccess">
-                    <div class="success-icon">&#10003;</div>
+                    <div class="success-icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="var(--green)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="20"/><polyline points="16,24 22,30 32,18"/></svg></div>
                     <p>Successfully added <strong id="loginUsername"></strong>!</p>
                 </div>
                 <div class="login-error hidden" id="loginError">
-                    <div class="error-icon">&#10007;</div>
+                    <div class="error-icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="var(--red)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="20"/><line x1="17" y1="17" x2="31" y2="31"/><line x1="31" y1="17" x2="17" y2="31"/></svg></div>
                     <p id="loginErrorMsg">Login failed.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Export Modal -->
-    <div class="modal-overlay" id="exportModal">
-        <div class="modal modal-wide">
-            <div class="modal-header">
-                <h2>Export Accounts</h2>
-                <button class="modal-close" onclick="closeExportModal()">&times;</button>
-            </div>
-            <div class="modal-body export-body">
-                <div class="export-controls">
-                    <button class="btn btn-sm btn-secondary" onclick="exportSelectAll()">Select All</button>
-                    <button class="btn btn-sm btn-secondary" onclick="exportDeselectAll()">Deselect All</button>
-                </div>
-                <div class="export-list" id="exportList"></div>
-                <div class="export-actions">
-                    <button class="btn btn-primary" onclick="doExport()">Download .txt</button>
-                    <button class="btn btn-secondary" onclick="copyExport()">Copy to Clipboard</button>
                 </div>
             </div>
         </div>

@@ -30,13 +30,15 @@ async function loadAccounts() {
 function renderAccounts() {
     const tbody = document.getElementById('accountBody');
     if (accounts.length === 0) {
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="4">No accounts yet. Click "Add Account" to get started.</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="5">No accounts yet. Click "Add Account" to get started.</td></tr>';
+        updateSelectAllCheck();
         return;
     }
     tbody.innerHTML = accounts.map(a => {
         const headUrl = `https://mc-heads.net/avatar/${a.uuid}/28`;
         const expiry = formatExpiry(a.tokenExpiry);
         return `<tr>
+            <td class="checkbox-col"><input type="checkbox" class="account-check" value="${a.id}" onchange="updateSelectAllCheck()"></td>
             <td>
                 <div class="player-cell">
                     <img class="player-head" src="${headUrl}" alt="${a.username}" onerror="this.style.display='none'">
@@ -44,7 +46,7 @@ function renderAccounts() {
                 </div>
             </td>
             <td class="uuid-cell">${escHtml(a.uuid)}</td>
-            <td><span class="expiry-text ${isExpired(a.tokenExpiry) ? 'expired' : ''}">${expiry}</span></td>
+            <td class="expiry-col"><span class="expiry-text ${isExpired(a.tokenExpiry) ? 'expired' : ''}">${expiry}</span></td>
             <td>
                 <div class="actions">
                     ${a.accessToken ? `<button class="btn btn-sm btn-secondary" onclick="copySession(${a.id})">Copy Session</button>` : ''}
@@ -55,6 +57,7 @@ function renderAccounts() {
             </td>
         </tr>`;
     }).join('');
+    updateSelectAllCheck();
 }
 
 function formatExpiry(ms) {
@@ -63,9 +66,9 @@ function formatExpiry(ms) {
     if (ms < now) return 'Expired';
     const diff = ms - now;
     const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m remaining`;
+    if (mins < 60) return `${mins}m`;
     const hours = Math.floor(mins / 60);
-    return `${hours}h ${mins % 60}m remaining`;
+    return `${hours}h ${mins % 60}m`;
 }
 
 function isExpired(ms) {
@@ -136,6 +139,7 @@ async function deleteAccount(id) {
 function openLoginModal() {
     document.getElementById('loginModal').classList.add('active');
     resetLoginModal();
+    startLogin();
 }
 
 function closeLoginModal() {
@@ -144,14 +148,12 @@ function closeLoginModal() {
 }
 
 function resetLoginModal() {
-    document.getElementById('loginStart').classList.remove('hidden');
     document.getElementById('loginCode').classList.add('hidden');
     document.getElementById('loginSuccess').classList.add('hidden');
     document.getElementById('loginError').classList.add('hidden');
 }
 
 function startLogin() {
-    document.getElementById('loginStart').classList.add('hidden');
     document.getElementById('loginCode').classList.remove('hidden');
 
     const evtSource = new EventSource('/api/accounts/login');
@@ -190,45 +192,42 @@ function copyLoginLink() {
     const link = document.getElementById('verificationLink').href;
     if (!link || link === '#') return;
     copyToClipboard(link);
-    showToast('Link copied — paste in incognito window');
+    showToast('Link copied');
 }
 
-// --- Export Modal ---
-function openExportModal() {
-    document.getElementById('exportModal').classList.add('active');
-    renderExportList();
+// --- Selection & Export ---
+function selectAll() {
+    document.querySelectorAll('.account-check').forEach(cb => cb.checked = true);
+    updateSelectAllCheck();
 }
 
-function closeExportModal() {
-    document.getElementById('exportModal').classList.remove('active');
+function deselectAll() {
+    document.querySelectorAll('.account-check').forEach(cb => cb.checked = false);
+    updateSelectAllCheck();
 }
 
-function renderExportList() {
-    const list = document.getElementById('exportList');
-    if (accounts.length === 0) {
-        list.innerHTML = '<p class="export-empty">No accounts to export.</p>';
-        return;
-    }
-    list.innerHTML = accounts.map(a => `
-        <label class="export-item">
-            <input type="checkbox" class="export-check" value="${a.id}" checked>
-            <img class="player-head" src="https://mc-heads.net/avatar/${a.uuid}/20" onerror="this.style.display='none'">
-            <span>${escHtml(a.username)}</span>
-        </label>
-    `).join('');
+function toggleSelectAll(headerCheckbox) {
+    document.querySelectorAll('.account-check').forEach(cb => cb.checked = headerCheckbox.checked);
+    updateSelectAllCheck();
 }
 
-function exportSelectAll() {
-    document.querySelectorAll('.export-check').forEach(cb => cb.checked = true);
-}
+function updateSelectAllCheck() {
+    const all = document.querySelectorAll('.account-check');
+    const checked = document.querySelectorAll('.account-check:checked');
+    const headerCheck = document.getElementById('selectAllCheck');
+    if (!headerCheck) return;
+    headerCheck.checked = all.length > 0 && checked.length === all.length;
+    headerCheck.indeterminate = checked.length > 0 && checked.length < all.length;
 
-function exportDeselectAll() {
-    document.querySelectorAll('.export-check').forEach(cb => cb.checked = false);
+    const hasSelection = checked.length > 0;
+    document.getElementById('exportSeparator').classList.toggle('hidden', !hasSelection);
+    document.getElementById('exportTxtBtn').classList.toggle('hidden', !hasSelection);
+    document.getElementById('copyExportBtn').classList.toggle('hidden', !hasSelection);
 }
 
 function getExportText() {
     const selectedIds = new Set(
-        [...document.querySelectorAll('.export-check:checked')].map(cb => parseInt(cb.value))
+        [...document.querySelectorAll('.account-check:checked')].map(cb => parseInt(cb.value))
     );
     return accounts
         .filter(a => selectedIds.has(a.id) && a.accessToken && a.refreshToken)

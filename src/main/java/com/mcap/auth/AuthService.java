@@ -1,15 +1,16 @@
 package com.mcap.auth;
 
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.raphimc.minecraftauth.MinecraftAuth;
-import net.raphimc.minecraftauth.step.java.session.StepFullJavaSession;
-import net.raphimc.minecraftauth.step.msa.StepMsaDeviceCode;
+import net.raphimc.minecraftauth.java.JavaAuthManager;
+import net.raphimc.minecraftauth.java.model.MinecraftProfile;
+import net.raphimc.minecraftauth.java.model.MinecraftToken;
+import net.raphimc.minecraftauth.msa.model.MsaDeviceCode;
+import net.raphimc.minecraftauth.msa.service.impl.DeviceCodeMsaAuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
 import java.util.function.Consumer;
 
 public class AuthService {
@@ -24,61 +25,39 @@ public class AuthService {
         String authJson
     ) {}
 
-    public LoginResult login(Consumer<StepMsaDeviceCode.MsaDeviceCode> deviceCodeCallback) throws Exception {
-        StepFullJavaSession.FullJavaSession session = MinecraftAuth.JAVA_DEVICE_CODE_LOGIN.getFromInput(
-            MinecraftAuth.createHttpClient(),
-            new StepMsaDeviceCode.MsaDeviceCodeCallback(deviceCodeCallback)
-        );
+    public LoginResult login(Consumer<MsaDeviceCode> deviceCodeCallback) throws Exception {
+        JavaAuthManager authManager = JavaAuthManager.create(MinecraftAuth.createHttpClient())
+            .login(DeviceCodeMsaAuthService::new, deviceCodeCallback);
 
-        return extractResult(session);
+        return extractResult(authManager);
     }
 
     public LoginResult refresh(String authJson) throws Exception {
         JsonObject json = JsonParser.parseString(authJson).getAsJsonObject();
+        JavaAuthManager authManager = JavaAuthManager.fromJson(MinecraftAuth.createHttpClient(), json);
 
-        // Recursively zero out every expireTimeMs in the entire JSON tree.
-        // This forces MinecraftAuth to treat all steps as expired and re-fetch them.
-        zeroAllExpiry(json);
+        // getUpToDate() auto-refreshes expired tokens
+        authManager.getMinecraftToken().getUpToDate();
+        authManager.getMinecraftProfile().getUpToDate();
 
-        log.info("Forced all tokens expired, starting refresh...");
-
-        StepFullJavaSession.FullJavaSession session = MinecraftAuth.JAVA_DEVICE_CODE_LOGIN.fromJson(json);
-        StepFullJavaSession.FullJavaSession refreshed = MinecraftAuth.JAVA_DEVICE_CODE_LOGIN.refresh(
-            MinecraftAuth.createHttpClient(),
-            session
-        );
-
-        return extractResult(refreshed);
+        return extractResult(authManager);
     }
 
-    private void zeroAllExpiry(JsonObject json) {
-        for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
-            if (entry.getKey().equals("expireTimeMs")) {
-                json.addProperty("expireTimeMs", 0);
-            } else if (entry.getValue().isJsonObject()) {
-                zeroAllExpiry(entry.getValue().getAsJsonObject());
-            }
-        }
-    }
+    private LoginResult extractResult(JavaAuthManager authManager) throws Exception {
+        MinecraftProfile profile = authManager.getMinecraftProfile().getUpToDate();
+        MinecraftToken mcToken = authManager.getMinecraftToken().getUpToDate();
 
-    private LoginResult extractResult(StepFullJavaSession.FullJavaSession session) {
-        JsonObject json = MinecraftAuth.JAVA_DEVICE_CODE_LOGIN.toJson(session);
-
-        String uuid = session.getMcProfile().getId().toString();
-        String username = session.getMcProfile().getName();
-        String accessToken = session.getMcProfile().getMcToken().getAccessToken();
-        long expiry = session.getMcProfile().getMcToken().getExpireTimeMs();
+        String uuid = profile.getId().toString();
+        String username = profile.getName();
+        String accessToken = mcToken.getToken();
+        long expiry = mcToken.getExpireTimeMs();
 
         log.info("Token for {}: expires in {}m", username,
             (expiry - System.currentTimeMillis()) / 60000);
 
-        String refreshToken = session.getMcProfile()
-            .getMcToken()
-            .getXblXsts()
-            .getInitialXblSession()
-            .getMsaToken()
-            .getRefreshToken();
+        String refreshToken = authManager.getMsaToken().getCached().getRefreshToken();
 
+        JsonObject json = JavaAuthManager.toJson(authManager);
         return new LoginResult(uuid, username, accessToken, refreshToken, expiry, json.toString());
     }
 

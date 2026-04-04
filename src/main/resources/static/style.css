@@ -40,8 +40,13 @@ header {
 
 .header-left {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 12px;
+}
+
+.header-icon {
+    width: 28px;
+    height: 28px;
 }
 
 h1 {
@@ -71,6 +76,14 @@ main {
     display: flex;
     gap: 8px;
     margin-bottom: 16px;
+    align-items: center;
+}
+
+.toolbar-separator {
+    width: 1px;
+    height: 24px;
+    background: var(--border);
+    margin: 0 4px;
 }
 
 .btn {
@@ -104,6 +117,12 @@ main {
 .btn-sm {
     padding: 4px 10px;
     font-size: 12px;
+}
+
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn-danger {
@@ -144,7 +163,6 @@ td {
 }
 
 tr:last-child td { border-bottom: none; }
-tr:hover td { background: var(--bg-hover); }
 
 .empty-row td {
     text-align: center;
@@ -163,7 +181,7 @@ tr:hover td { background: var(--bg-hover); }
 .player-head {
     width: 28px;
     height: 28px;
-    border-radius: 4px;
+    flex-shrink: 0;
     image-rendering: pixelated;
 }
 
@@ -176,7 +194,18 @@ tr:hover td { background: var(--bg-hover); }
 .actions {
     display: flex;
     gap: 6px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+th:last-child,
+td:last-child {
+    width: 1%;
+    white-space: nowrap;
+}
+
+.expiry-col {
+    text-align: center;
 }
 
 .expiry-text {
@@ -207,10 +236,6 @@ tr:hover td { background: var(--bg-hover); }
     border-radius: 10px;
     width: 420px;
     max-width: 90vw;
-}
-
-.modal-wide {
-    width: 500px;
 }
 
 .modal-header {
@@ -289,72 +314,29 @@ tr:hover td { background: var(--bg-hover); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .success-icon {
-    font-size: 48px;
-    color: var(--green);
     margin-bottom: 8px;
 }
 
 .error-icon {
-    font-size: 48px;
-    color: var(--red);
     margin-bottom: 8px;
 }
 
 .hidden { display: none !important; }
 
-/* Export Modal */
-.export-body {
-    text-align: left;
-}
-
-.export-controls {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-
-.export-list {
-    max-height: 300px;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px;
-    margin-bottom: 16px;
-}
-
-.export-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-}
-
-.export-item:hover {
-    background: var(--bg-hover);
-}
-
-.export-item .player-head {
-    width: 20px;
-    height: 20px;
-}
-
-.export-check {
-    accent-color: var(--blue);
-}
-
-.export-empty {
+/* Checkbox column */
+.checkbox-col {
+    width: 40px;
     text-align: center;
-    color: var(--text-dim);
-    padding: 16px;
 }
 
-.export-actions {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
+.account-check {
+    accent-color: var(--blue);
+    cursor: pointer;
+}
+
+#selectAllCheck {
+    accent-color: var(--blue);
+    cursor: pointer;
 }
 
 /* Toast */
