@@ -2,6 +2,8 @@
 
 A lightweight and simple self-hosted Minecraft account pool manager. Sign in with Microsoft accounts, store tokens, and keep them fresh automatically, all accessible from a web dashboard.
 
+<img width="1225" height="703" alt="MCAP Dashboard Screenshot" src="https://github.com/user-attachments/assets/e6389b8e-0727-4c29-a2a7-a7a7a8e3b0a4" />
+
 > [!NOTE]
 > This is designed for single-user, local use. There is no authentication or input sanitization. Do not expose this to the public internet.
 
