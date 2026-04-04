@@ -59,7 +59,13 @@ public class AccountPool {
     public void refreshAccount(Account account) throws Exception {
         try {
             log.info("Refreshing token for {} ({})", account.getUsername(), account.getUuid());
-            AuthService.LoginResult result = authService.refresh(account.getAuthJson());
+            AuthService.LoginResult result;
+            if (account.getAuthJson() != null && !account.getAuthJson().isBlank()) {
+                result = authService.refresh(account.getAuthJson());
+            } else {
+                // Imported via session:refresh — no authJson, use refresh token directly
+                result = authService.loginWithRefreshToken(account.getRefreshToken());
+            }
             repo.updateTokens(account.getId(), result.authJson(), result.accessToken(), result.refreshToken(), result.tokenExpiry());
             if (result.username() != null && !result.username().equals(account.getUsername())) {
                 repo.updateUsername(account.getId(), result.username());

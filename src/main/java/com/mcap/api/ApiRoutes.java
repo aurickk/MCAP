@@ -37,6 +37,7 @@ public class ApiRoutes {
         app.delete("/api/accounts/{id}", this::deleteAccount);
         app.post("/api/accounts/{id}/refresh", this::refreshAccount);
         app.sse("/api/accounts/login", this::loginSse);
+        app.post("/api/accounts/login/token", this::loginWithToken);
         app.get("/api/accounts/{id}/profile", this::getProfile);
         app.get("/api/accounts/{id}/skin-image", this::getSkinImage);
         app.get("/api/accounts/{id}/cape-image", this::getCapeImage);
@@ -112,6 +113,69 @@ public class ApiRoutes {
                 client.close();
             }
         });
+    }
+
+    private void loginWithToken(Context ctx) {
+        try {
+            JsonObject body = JsonParser.parseString(ctx.body()).getAsJsonObject();
+            String refreshToken = body.has("refreshToken") ? body.get("refreshToken").getAsString() : null;
+            String accessToken = body.has("accessToken") ? body.get("accessToken").getAsString() : null;
+
+            if (refreshToken == null || refreshToken.isBlank()) {
+                ctx.status(400).json(Map.of("error", "Refresh token is required"));
+                return;
+            }
+            refreshToken = refreshToken.trim();
+
+            // If a session token is provided and still valid, use it directly
+            if (accessToken != null && !accessToken.isBlank()) {
+                accessToken = accessToken.trim();
+                long expiry = AuthService.parseJwtExpiry(accessToken);
+                if (expiry > System.currentTimeMillis()) {
+                    try {
+                        MinecraftProfileService.ProfileData profile = profileService.fetchProfile(accessToken);
+                        String uuid = profile.uuid();
+                        // Mojang returns UUID without dashes — normalize to dashed format
+                        if (uuid != null && !uuid.contains("-") && uuid.length() == 32) {
+                            uuid = uuid.replaceFirst("(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})", "$1-$2-$3-$4-$5");
+                        }
+                        Account account = new Account();
+                        account.setUuid(uuid);
+                        account.setUsername(profile.username());
+                        account.setAuthJson("");
+                        account.setAccessToken(accessToken);
+                        account.setRefreshToken(refreshToken);
+                        account.setTokenExpiry(expiry);
+                        repo.save(account);
+                        log.info("Imported {} with existing session token (expires in {}m)",
+                            profile.username(), (expiry - System.currentTimeMillis()) / 60000);
+                        ctx.json(Map.of("ok", true, "username", profile.username(), "uuid", uuid));
+                        return;
+                    } catch (Exception e) {
+                        log.info("Session token rejected by Mojang, falling back to refresh token auth: {}", e.getMessage());
+                    }
+                } else {
+                    log.info("Provided session token is expired, falling back to refresh token auth");
+                }
+            }
+
+            // Full auth from refresh token
+            AuthService.LoginResult result = authService.loginWithRefreshToken(refreshToken);
+
+            Account account = new Account();
+            account.setUuid(result.uuid());
+            account.setUsername(result.username());
+            account.setAuthJson(result.authJson());
+            account.setAccessToken(result.accessToken());
+            account.setRefreshToken(result.refreshToken());
+            account.setTokenExpiry(result.tokenExpiry());
+            repo.save(account);
+
+            ctx.json(Map.of("ok", true, "username", result.username(), "uuid", result.uuid()));
+        } catch (Exception e) {
+            log.error("Token import failed", e);
+            ctx.status(500).json(Map.of("error", "Login failed: " + e.getMessage()));
+        }
     }
 
     private void getProfile(Context ctx) {

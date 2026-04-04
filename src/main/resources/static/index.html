@@ -19,7 +19,7 @@
 
     <main>
         <div class="toolbar">
-            <button class="btn btn-primary" onclick="openLoginModal()">+ Add Account</button>
+            <button class="btn btn-primary" onclick="openLoginModal()">Add Account</button>
             <div class="toolbar-separator hidden" id="exportSeparator"></div>
             <button class="btn btn-sm btn-secondary hidden" id="exportTxtBtn" onclick="doExport()">Export .txt</button>
             <button class="btn btn-sm btn-secondary hidden" id="copyExportBtn" onclick="copyExport()">Copy Export</button>
@@ -55,10 +55,30 @@
     <div class="modal-overlay" id="loginModal">
         <div class="modal">
             <div class="modal-header">
-                <h2>Add Microsoft Account</h2>
+                <h2 id="loginModalTitle">Add Account</h2>
                 <button class="modal-close" onclick="closeLoginModal()"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg></button>
             </div>
             <div class="modal-body" id="loginContent">
+                <!-- Method picker -->
+                <div id="loginPicker">
+                    <div class="login-methods">
+                        <button class="login-method" onclick="pickLoginMethod('microsoft')">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="1" y="1" width="10" height="10" fill="#f25022"/><rect x="13" y="1" width="10" height="10" fill="#7fba00"/><rect x="1" y="13" width="10" height="10" fill="#00a4ef"/><rect x="13" y="13" width="10" height="10" fill="#ffb900"/></svg>
+                            <div class="login-method-text">
+                                <span class="login-method-title">Microsoft Login</span>
+                                <span class="login-method-desc">Sign in with your Microsoft account</span>
+                            </div>
+                        </button>
+                        <button class="login-method" onclick="pickLoginMethod('refresh')">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                            <div class="login-method-text">
+                                <span class="login-method-title">Refresh Token</span>
+                                <span class="login-method-desc">Import account(s) using refresh token(s)</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                <!-- Microsoft device code flow -->
                 <div class="login-code hidden" id="loginCode">
                     <p>Open the link below and enter the code:</p>
                     <div class="device-code" id="deviceCode">--------</div>
@@ -76,6 +96,20 @@
                         <span>Waiting for authentication...</span>
                     </div>
                 </div>
+                <!-- Refresh token input -->
+                <div class="hidden" id="loginRefreshToken">
+                    <p>One per line. Supports <code>session:refresh</code> or just refresh tokens.</p>
+                    <textarea id="refreshTokenInput" class="refresh-token-input" placeholder="M.C544_BL2...&#10;ey...:M.C544_BL2...&#10;M.C544_BL2..." rows="5"></textarea>
+                    <button class="btn btn-primary" onclick="submitRefreshTokens()" id="refreshTokenSubmit" style="margin-top: 12px; width: 100%;">Import</button>
+                    <div class="hidden" id="refreshTokenProgress">
+                        <div class="import-progress">
+                            <div class="import-progress-bar" id="importProgressBar"></div>
+                        </div>
+                        <div class="import-status" id="importStatus"></div>
+                        <div class="import-results" id="importResults"></div>
+                    </div>
+                </div>
+                <!-- Shared success/error -->
                 <div class="login-success hidden" id="loginSuccess">
                     <div class="success-icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="var(--green)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="20"/><polyline points="16,24 22,30 32,18"/></svg></div>
                     <p>Successfully added <strong id="loginUsername"></strong>!</p>

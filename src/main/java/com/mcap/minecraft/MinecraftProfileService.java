@@ -30,7 +30,7 @@ public class MinecraftProfileService {
 
     public record ProfileTextures(String skinUrl, String skinModel, String capeUrl) {}
     public record Cape(String id, String state, String url, String alias) {}
-    public record ProfileData(String username, String skinUrl, String skinModel, List<Cape> capes) {}
+    public record ProfileData(String uuid, String username, String skinUrl, String skinModel, List<Cape> capes) {}
     public record NameAvailability(String status) {}
 
     public ProfileTextures fetchProfileTextures(String uuid) throws Exception {
@@ -161,6 +161,7 @@ public class MinecraftProfileService {
             throw new Exception(parseMojangError(res.body(), res.statusCode()));
         }
         JsonObject profile = JsonParser.parseString(res.body()).getAsJsonObject();
+        String uuid = profile.has("id") ? profile.get("id").getAsString() : null;
         String username = profile.has("name") ? profile.get("name").getAsString() : null;
 
         // Parse skins
@@ -195,7 +196,7 @@ public class MinecraftProfileService {
             }
         }
 
-        return new ProfileData(username, skinUrl, skinModel, capes);
+        return new ProfileData(uuid, username, skinUrl, skinModel, capes);
     }
 
     public void equipCape(String accessToken, String capeId) throws Exception {

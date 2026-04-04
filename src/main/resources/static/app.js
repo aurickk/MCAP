@@ -91,10 +91,17 @@ function renderAccounts() {
                                 <input type="file" accept=".png" id="skinFile-${a.id}" class="file-input" onchange="previewSkinFile(${a.id})">
                             </div>
                             <div class="form-row">
-                                <select id="skinVariant-${a.id}" class="variant-select" onchange="onVariantChange(${a.id})">
+                                <select id="skinVariant-${a.id}" class="variant-select-hidden" onchange="onVariantChange(${a.id})">
                                     <option value="classic">Classic</option>
                                     <option value="slim">Slim</option>
                                 </select>
+                                <div class="custom-select" data-for="skinVariant-${a.id}">
+                                    <div class="custom-select-trigger"><span>Classic</span><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
+                                    <div class="custom-select-options">
+                                        <div class="custom-select-option selected" data-value="classic">Classic</div>
+                                        <div class="custom-select-option" data-value="slim">Slim</div>
+                                    </div>
+                                </div>
                                 <button class="btn btn-sm btn-primary" onclick="uploadSkin(${a.id})">Upload Skin</button>
                             </div>
                         </div>
@@ -226,6 +233,7 @@ function applyProfile(id, data) {
     const variantSelect = document.getElementById(`skinVariant-${id}`);
     if (variantSelect && data.skinModel) {
         variantSelect.value = data.skinModel;
+        syncCustomSelect(variantSelect);
     }
 
     // Create 3D skin viewer (skin + active cape)
@@ -412,27 +420,52 @@ async function deleteSelected() {
 }
 
 // --- Login Modal ---
+let activeEvtSource = null;
+let importCancelled = false;
+
 function openLoginModal() {
     document.getElementById('loginModal').classList.add('active');
     resetLoginModal();
-    startLogin();
 }
 
 function closeLoginModal() {
     document.getElementById('loginModal').classList.remove('active');
+    if (activeEvtSource) {
+        activeEvtSource.close();
+        activeEvtSource = null;
+    }
+    importCancelled = true;
     resetLoginModal();
 }
 
 function resetLoginModal() {
+    document.getElementById('loginModalTitle').textContent = 'Add Account';
+    document.getElementById('loginPicker').classList.remove('hidden');
     document.getElementById('loginCode').classList.add('hidden');
+    document.getElementById('loginRefreshToken').classList.add('hidden');
     document.getElementById('loginSuccess').classList.add('hidden');
     document.getElementById('loginError').classList.add('hidden');
+    document.getElementById('refreshTokenInput').value = '';
+    document.getElementById('refreshTokenProgress').classList.add('hidden');
+    document.getElementById('refreshTokenSubmit').classList.remove('hidden');
+}
+
+function pickLoginMethod(method) {
+    document.getElementById('loginPicker').classList.add('hidden');
+    if (method === 'microsoft') {
+        document.getElementById('loginModalTitle').textContent = 'Microsoft Login';
+        startLogin();
+    } else {
+        document.getElementById('loginModalTitle').textContent = 'Import Refresh Token';
+        document.getElementById('loginRefreshToken').classList.remove('hidden');
+    }
 }
 
 function startLogin() {
     document.getElementById('loginCode').classList.remove('hidden');
 
     const evtSource = new EventSource('/api/accounts/login');
+    activeEvtSource = evtSource;
 
     evtSource.addEventListener('device_code', (e) => {
         const data = JSON.parse(e.data);
@@ -448,6 +481,7 @@ function startLogin() {
         document.getElementById('loginSuccess').classList.remove('hidden');
         document.getElementById('loginUsername').textContent = data.username;
         evtSource.close();
+        activeEvtSource = null;
         loadAccounts();
         setTimeout(closeLoginModal, 2000);
     });
@@ -459,9 +493,81 @@ function startLogin() {
             document.getElementById('loginErrorMsg').textContent = e.data;
         }
         evtSource.close();
+        activeEvtSource = null;
     });
 
     evtSource.addEventListener('status', () => {});
+}
+
+async function submitRefreshTokens() {
+    const input = document.getElementById('refreshTokenInput');
+    const entries = input.value.split('\n').map(t => t.trim()).filter(t => t.length > 0).map(t => {
+        // Support session:refresh format (exported from MCAP)
+        if (t.includes(':')) {
+            const parts = t.split(':');
+            return { accessToken: parts.slice(0, -1).join(':'), refreshToken: parts[parts.length - 1] };
+        }
+        return { refreshToken: t };
+    });
+    if (entries.length === 0) {
+        showToast('Please paste at least one token');
+        return;
+    }
+
+    document.getElementById('refreshTokenSubmit').classList.add('hidden');
+    const progress = document.getElementById('refreshTokenProgress');
+    const bar = document.getElementById('importProgressBar');
+    const status = document.getElementById('importStatus');
+    const results = document.getElementById('importResults');
+    progress.classList.remove('hidden');
+    results.innerHTML = '';
+    importCancelled = false;
+
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < entries.length; i++) {
+        if (importCancelled) break;
+
+        const pct = ((i) / entries.length) * 100;
+        bar.style.width = pct + '%';
+        status.textContent = `Importing ${i + 1} of ${entries.length}...`;
+
+        try {
+            const res = await fetch('/api/accounts/login/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(entries[i])
+            });
+            const result = await res.json();
+            if (result.error) {
+                failed++;
+                results.innerHTML += `<div class="import-result import-fail">Token ${i + 1}: ${result.error}</div>`;
+            } else {
+                success++;
+                results.innerHTML += `<div class="import-result import-ok">${result.username} added</div>`;
+            }
+        } catch (e) {
+            if (importCancelled) break;
+            failed++;
+            results.innerHTML += `<div class="import-result import-fail">Token ${i + 1}: Request failed</div>`;
+        }
+        // Small delay between imports to ease pressure on Microsoft's API
+        if (i < entries.length - 1) {
+            await new Promise(r => setTimeout(r, 1500));
+        }
+    }
+
+    bar.style.width = '100%';
+    if (importCancelled) {
+        status.textContent = `Cancelled — ${success} imported, ${entries.length - success - failed} skipped`;
+    } else {
+        status.textContent = `Done — ${success} imported, ${failed} failed`;
+    }
+    loadAccounts();
+    if (failed === 0) {
+        setTimeout(closeLoginModal, 2000);
+    }
 }
 
 function copyLoginLink() {
@@ -703,10 +809,57 @@ async function hideCape(id) {
     }
 }
 
+// --- Custom Select ---
+function syncCustomSelect(hiddenSelect) {
+    const customEl = document.querySelector(`.custom-select[data-for="${hiddenSelect.id}"]`);
+    if (!customEl) return;
+    const val = hiddenSelect.value;
+    const trigger = customEl.querySelector('.custom-select-trigger span');
+    customEl.querySelectorAll('.custom-select-option').forEach(opt => {
+        opt.classList.toggle('selected', opt.dataset.value === val);
+        if (opt.dataset.value === val) trigger.textContent = opt.textContent;
+    });
+}
+
+document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('.custom-select-trigger');
+    if (trigger) {
+        const wrapper = trigger.parentElement;
+        // Close all other open selects
+        document.querySelectorAll('.custom-select.open').forEach(el => {
+            if (el !== wrapper) el.classList.remove('open');
+        });
+        wrapper.classList.toggle('open');
+        e.stopPropagation();
+        return;
+    }
+    const option = e.target.closest('.custom-select-option');
+    if (option) {
+        const wrapper = option.closest('.custom-select');
+        const selectId = wrapper.dataset.for;
+        const hiddenSelect = document.getElementById(selectId);
+        hiddenSelect.value = option.dataset.value;
+        hiddenSelect.dispatchEvent(new Event('change'));
+        syncCustomSelect(hiddenSelect);
+        wrapper.classList.remove('open');
+        e.stopPropagation();
+        return;
+    }
+    // Close all open selects on outside click
+    document.querySelectorAll('.custom-select.open').forEach(el => el.classList.remove('open'));
+});
+
 // --- Toast ---
+let toastTimer;
 function showToast(msg) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
+    clearTimeout(toastTimer);
     toast.classList.remove('hidden');
-    setTimeout(() => toast.classList.add('hidden'), 3000);
+    // Force reflow so the animation replays if already visible
+    void toast.offsetWidth;
+    toast.classList.add('visible');
+    toastTimer = setTimeout(() => {
+        toast.classList.remove('visible');
+    }, 4000);
 }
