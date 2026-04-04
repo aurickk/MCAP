@@ -8,8 +8,7 @@ RUN ./gradlew build --no-daemon -x test
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /app/build/libs/mcap-1.0.0.jar mcap.jar
-COPY --from=build /app/build/distributions/mcap-1.0.0.tar mcap.tar
+COPY --from=build /app/build/distributions/mcap-*.tar mcap.tar
 RUN tar -xf mcap.tar --strip-components=1 && rm mcap.tar
 VOLUME /app/data
 ENV MCAP_DB=/app/data/mcap.db

@@ -11,9 +11,14 @@ A lightweight and simple self-hosted Minecraft account pool manager. Sign in wit
 ## Features
 
 - Microsoft device code login flow
-- Automatically detect expire every 30 minutes and refresh them
+- Import accounts via refresh tokens (single or bulk)
+- Automatically refresh expired tokens every 30 minutes
 - Copy session and refresh tokens per account
 - Export accounts as `sessiontoken:refreshtoken` per line
+- 3D skin viewer with live preview
+- Skin uploading (classic/slim)
+- Cape management (equip, hide, preview on hover)
+- Username changing with availability check
 - REST API for programmatic access
 - Dark-themed web dashboard
 
@@ -26,28 +31,55 @@ A lightweight and simple self-hosted Minecraft account pool manager. Sign in wit
 
 ## Installation
 
-### Prerequisites
+### Docker (recommended)
 
-- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
-
-### Steps
-
-1. Clone the repository:
+1. Create a `docker-compose.yml`:
+   ```yaml
+   services:
+     mcap:
+       image: ghcr.io/aurickk/mcap:latest
+       ports:
+         - "7070:7070"
+       volumes:
+         - mcap-data:/app/data
+   volumes:
+     mcap-data:
    ```
-   git clone https://github.com/your-username/mcap.git
-   cd mcap
-   ```
 
-2. Build and start the container:
+2. Start the container:
    ```
-   docker compose up -d --build
+   docker compose up -d
    ```
 
 3. Open http://localhost:7070
 
 To stop: `docker compose down`
 
-To rebuild after changes: `docker compose up -d --build`
+### JAR
+
+Requires [Java 21](https://adoptium.net/) or later.
+
+1. Download `mcap-<version>.jar` from the [latest release](https://github.com/Aurickk/mcap/releases/latest)
+
+2. Run:
+   ```
+   java -jar mcap-<version>.jar
+   ```
+
+3. Open http://localhost:7070
+
+### Build from source
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/Aurickk/mcap.git
+   cd mcap
+   ```
+
+2. Build and run:
+   ```
+   ./gradlew run
+   ```
 
 ## Configuration
 
@@ -66,6 +98,13 @@ Set in `docker-compose.yml`:
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/accounts` | List all accounts |
+| `GET (SSE)` | `/api/accounts/login` | Start device code login |
+| `POST` | `/api/accounts/login/token` | Import via refresh token |
 | `POST` | `/api/accounts/{id}/refresh` | Refresh account tokens |
 | `DELETE` | `/api/accounts/{id}` | Remove account |
-| `GET (SSE)` | `/api/accounts/login` | Start device code login |
+| `GET` | `/api/accounts/{id}/profile` | Fetch skin/cape data |
+| `POST` | `/api/accounts/{id}/skin` | Upload skin |
+| `PUT` | `/api/accounts/{id}/cape` | Equip cape |
+| `DELETE` | `/api/accounts/{id}/cape` | Hide cape |
+| `GET` | `/api/accounts/name/{name}/available` | Check username availability |
+| `PUT` | `/api/accounts/{id}/name` | Change username |
