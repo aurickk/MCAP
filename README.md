@@ -24,21 +24,30 @@ A lightweight and simple self-hosted Minecraft account pool manager. Sign in wit
 - **Database:** SQLite
 - **Build:** Gradle
 
-## Quick Start (Docker)
+## Installation
 
-```
-docker compose up -d --build
-```
+### Prerequisites
 
-Open http://localhost:7070
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
 
-## Manual Setup
+### Steps
 
-Requires Java 21+.
+1. Clone the repository:
+   ```
+   git clone https://github.com/your-username/mcap.git
+   cd mcap
+   ```
 
-```
-./gradlew run
-```
+2. Build and start the container:
+   ```
+   docker compose up -d --build
+   ```
+
+3. Open http://localhost:7070
+
+To stop: `docker compose down`
+
+To rebuild after changes: `docker compose up -d --build`
 
 ## Configuration
 
