@@ -18,7 +18,7 @@ repositories {
 
 dependencies {
     // Web framework
-    implementation 'io.javalin:javalin:6.4.0'
+    implementation 'io.javalin:javalin:6.7.0'
 
     // MinecraftAuth
     implementation 'net.raphimc:MinecraftAuth:5.0.0'

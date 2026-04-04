@@ -4,6 +4,7 @@ import com.mcap.api.ApiRoutes;
 import com.mcap.auth.AuthService;
 import com.mcap.config.AppConfig;
 import com.mcap.db.AccountRepository;
+import com.mcap.minecraft.MinecraftProfileService;
 import com.mcap.pool.AccountPool;
 import io.javalin.Javalin;
 import org.slf4j.Logger;
@@ -19,11 +20,12 @@ public class Main {
         AuthService authService = new AuthService();
         AccountPool pool = new AccountPool(repo, authService);
 
-        ApiRoutes routes = new ApiRoutes(repo, pool, authService);
+        MinecraftProfileService profileService = new MinecraftProfileService();
+        ApiRoutes routes = new ApiRoutes(repo, pool, authService, profileService);
 
         Javalin app = Javalin.create(javalinConfig -> {
             javalinConfig.staticFiles.add("/static");
-            javalinConfig.http.asyncTimeout = 300_000L; // 5 min for device code flow
+            javalinConfig.http.asyncTimeout = 900_000L; // 15 min for device code flow
         });
 
         routes.register(app);

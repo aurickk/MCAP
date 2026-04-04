@@ -110,6 +110,20 @@ public class AccountRepository {
         }
     }
 
+    public void updateUsername(int id, String username) {
+        long now = System.currentTimeMillis();
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                 "UPDATE accounts SET username = ?, updated_at = ? WHERE id = ?")) {
+            ps.setString(1, username);
+            ps.setLong(2, now);
+            ps.setInt(3, id);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to update username", e);
+        }
+    }
+
     public void setError(int id) {
         long now = System.currentTimeMillis();
         try (Connection conn = getConnection();

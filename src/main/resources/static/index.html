@@ -23,6 +23,7 @@
             <div class="toolbar-separator hidden" id="exportSeparator"></div>
             <button class="btn btn-sm btn-secondary hidden" id="exportTxtBtn" onclick="doExport()">Export .txt</button>
             <button class="btn btn-sm btn-secondary hidden" id="copyExportBtn" onclick="copyExport()">Copy Export</button>
+            <button class="btn btn-sm btn-danger hidden" id="deleteSelectedBtn" onclick="deleteSelected()">Delete</button>
         </div>
 
         <div class="table-container">
@@ -37,8 +38,13 @@
                     </tr>
                 </thead>
                 <tbody id="accountBody">
-                    <tr class="empty-row">
-                        <td colspan="5">No accounts yet. Click "Add Account" to get started.</td>
+                    <tr class="loading-row">
+                        <td colspan="5">
+                            <div class="table-loader">
+                                <div class="spinner"></div>
+                                <span>Loading accounts...</span>
+                            </div>
+                        </td>
                     </tr>
                 </tbody>
             </table>
@@ -85,6 +91,7 @@
     <!-- Toast -->
     <div class="toast hidden" id="toast"></div>
 
+    <script src="/skinview3d.bundle.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>

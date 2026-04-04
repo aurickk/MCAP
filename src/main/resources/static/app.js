@@ -1,12 +1,18 @@
 // --- State ---
 let accounts = [];
 let refreshTimer = null;
+let expandedIds = new Set();
+let textureCache = {};
+let skinViewers = {};
+let initialLoad = true;
 
 // --- Init ---
 document.addEventListener('DOMContentLoaded', () => {
     loadAccounts();
     refreshTimer = setInterval(() => {
-        loadAccounts();
+        if (expandedIds.size === 0) {
+            loadAccounts();
+        }
     }, 10000);
 });
 
@@ -20,9 +26,15 @@ async function loadAccounts() {
     try {
         accounts = await api('/api/accounts');
         document.getElementById('accountCount').textContent = accounts.length;
+        initialLoad = false;
         renderAccounts();
     } catch (e) {
         console.error('Failed to load accounts', e);
+        if (initialLoad) {
+            const tbody = document.getElementById('accountBody');
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Failed to load accounts.</td></tr>';
+            initialLoad = false;
+        }
     }
 }
 
@@ -34,11 +46,20 @@ function renderAccounts() {
         updateSelectAllCheck();
         return;
     }
+    // Dispose existing 3D viewers before rebuilding DOM
+    for (const vid of Object.keys(skinViewers)) {
+        skinViewers[vid].dispose();
+        delete skinViewers[vid];
+    }
+
     tbody.innerHTML = accounts.map(a => {
         const headUrl = `https://mc-heads.net/avatar/${a.uuid}/28`;
         const expiry = formatExpiry(a.tokenExpiry);
-        return `<tr>
-            <td class="checkbox-col"><input type="checkbox" class="account-check" value="${a.id}" onchange="updateSelectAllCheck()"></td>
+        const isExpanded = expandedIds.has(a.id);
+        return `<tr class="account-row">
+            <td class="checkbox-col">
+                <input type="checkbox" class="account-check" value="${a.id}" onchange="updateSelectAllCheck()">
+            </td>
             <td>
                 <div class="player-cell">
                     <img class="player-head" src="${headUrl}" alt="${a.username}" onerror="this.style.display='none'">
@@ -52,12 +73,65 @@ function renderAccounts() {
                     ${a.accessToken ? `<button class="btn btn-sm btn-secondary" onclick="copySession(${a.id})">Copy Session</button>` : ''}
                     ${a.refreshToken ? `<button class="btn btn-sm btn-secondary" onclick="copyRefresh(${a.id})">Copy Refresh</button>` : ''}
                     <button class="btn btn-sm btn-secondary" onclick="refreshToken(${a.id})">Refresh</button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteAccount(${a.id})">Delete</button>
+                    <button class="btn-expand ${isExpanded ? 'expanded' : ''}" onclick="toggleExpand(${a.id})" title="Expand details">&#9654;</button>
+                </div>
+            </td>
+        </tr>
+        <tr class="detail-row ${isExpanded ? '' : 'hidden'}" id="detail-${a.id}">
+            <td colspan="5">
+                <div class="detail-panel">
+                    <div class="detail-skin">
+                        <canvas class="skin-canvas" id="skinCanvas-${a.id}" width="200" height="300"></canvas>
+                    </div>
+                    <div class="detail-forms">
+                        <div class="form-section">
+                            <h4>Change Skin</h4>
+                            <div class="form-row">
+                                <button class="btn btn-sm btn-secondary hidden" id="skinClear-${a.id}" onclick="clearSkinFile(${a.id})" title="Clear">&#10005;</button>
+                                <input type="file" accept=".png" id="skinFile-${a.id}" class="file-input" onchange="previewSkinFile(${a.id})">
+                            </div>
+                            <div class="form-row">
+                                <select id="skinVariant-${a.id}" class="variant-select" onchange="onVariantChange(${a.id})">
+                                    <option value="classic">Classic</option>
+                                    <option value="slim">Slim</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" onclick="uploadSkin(${a.id})">Upload Skin</button>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <h4>Capes</h4>
+                            <div class="cape-list" id="capeList-${a.id}">
+                                <span class="cape-loading">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-forms-right">
+                        <div class="form-section">
+                            <h4>Change Username</h4>
+                            <div class="form-row">
+                                <input type="text" id="nameInput-${a.id}" placeholder="New username" class="name-input" maxlength="16">
+                                <button class="btn btn-sm btn-secondary" onclick="checkName(${a.id})">Check</button>
+                            </div>
+                            <div class="name-status-row">
+                                <div id="nameStatus-${a.id}" class="name-status">&nbsp;</div>
+                                <button class="btn btn-sm btn-primary" onclick="changeName(${a.id})" id="nameChangeBtn-${a.id}" disabled>Change Name</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </td>
         </tr>`;
     }).join('');
     updateSelectAllCheck();
+
+    // Recreate 3D viewers for expanded rows (canvases were rebuilt)
+    for (const id of expandedIds) {
+        if (textureCache[id]) {
+            createSkinViewer(id, textureCache[id]);
+        } else {
+            loadProfile(id);
+        }
+    }
 }
 
 function formatExpiry(ms) {
@@ -79,6 +153,201 @@ function escHtml(str) {
     const div = document.createElement('div');
     div.textContent = str || '';
     return div.innerHTML;
+}
+
+// --- Expand/Collapse ---
+function toggleExpand(id) {
+    const detailRow = document.getElementById(`detail-${id}`);
+    const mainRow = detailRow.previousElementSibling;
+    const btn = mainRow.querySelector('.btn-expand');
+    if (expandedIds.has(id)) {
+        expandedIds.delete(id);
+        detailRow.classList.add('hidden');
+        btn.classList.remove('expanded');
+        disposeSkinViewer(id);
+    } else {
+        expandedIds.add(id);
+        detailRow.classList.remove('hidden');
+        btn.classList.add('expanded');
+        loadProfile(id);
+    }
+}
+
+function disposeSkinViewer(id) {
+    if (skinViewers[id]) {
+        skinViewers[id].dispose();
+        delete skinViewers[id];
+    }
+}
+
+function createSkinViewer(id, data) {
+    disposeSkinViewer(id);
+    const canvas = document.getElementById(`skinCanvas-${id}`);
+    if (!canvas) return;
+
+    const viewer = new skinview3d.SkinViewer({
+        canvas: canvas,
+        width: 200,
+        height: 300,
+        animation: new skinview3d.IdleAnimation()
+    });
+    viewer.zoom = 0.85;
+    skinViewers[id] = viewer;
+
+    // Load skin and cape directly from Mojang (serves CORS headers)
+    if (data.skinUrl) {
+        viewer.loadSkin(data.skinUrl, {
+            model: data.skinModel === 'slim' ? 'slim' : 'default'
+        });
+    }
+    if (data.capeUrl) {
+        viewer.loadCape(data.capeUrl);
+    }
+}
+
+async function loadProfile(id) {
+    if (textureCache[id]) {
+        applyProfile(id, textureCache[id]);
+        return;
+    }
+    try {
+        const data = await api(`/api/accounts/${id}/profile`);
+        if (!data.error) {
+            textureCache[id] = data;
+            applyProfile(id, data);
+        }
+    } catch (e) {
+        console.error('Failed to load profile for account', id, e);
+    }
+}
+
+function applyProfile(id, data) {
+    // Set variant select to match current skin model
+    const variantSelect = document.getElementById(`skinVariant-${id}`);
+    if (variantSelect && data.skinModel) {
+        variantSelect.value = data.skinModel;
+    }
+
+    // Create 3D skin viewer (skin + active cape)
+    const activeCape = data.capes ? data.capes.find(c => c.state === 'ACTIVE') : null;
+    createSkinViewer(id, { skinUrl: data.skinUrl, skinModel: data.skinModel, capeUrl: activeCape ? activeCape.url : null });
+
+    // Render cape list
+    if (data.capes) {
+        capeCache[id] = data.capes;
+        activeCapeUrl[id] = activeCape ? activeCape.url : null;
+        renderCapeList(id, data.capes);
+    }
+}
+
+// --- Skin Upload ---
+async function uploadSkin(id) {
+    const fileInput = document.getElementById(`skinFile-${id}`);
+    const variantSelect = document.getElementById(`skinVariant-${id}`);
+    if (!fileInput.files.length) {
+        showToast('Please select a skin file');
+        return;
+    }
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('variant', variantSelect.value);
+
+    showToast('Uploading skin...');
+    try {
+        const res = await fetch(`/api/accounts/${id}/skin`, { method: 'POST', body: formData });
+        const result = await res.json();
+        if (result.error) {
+            showToast(result.error);
+        } else {
+            showToast('Skin updated successfully');
+            // Bust cache and reload 3D viewer
+            delete textureCache[id];
+            disposeSkinViewer(id);
+            loadProfile(id);
+            loadAccounts();
+        }
+    } catch (e) {
+        showToast('Skin upload failed');
+    }
+}
+
+// --- Name Check & Change ---
+async function checkName(id) {
+    const nameInput = document.getElementById(`nameInput-${id}`);
+    const nameStatus = document.getElementById(`nameStatus-${id}`);
+    const changeBtn = document.getElementById(`nameChangeBtn-${id}`);
+    const name = nameInput.value.trim();
+
+    if (!name || name.length < 3) {
+        nameStatus.textContent = 'Min 3 characters';
+        nameStatus.className = 'name-status name-taken';
+        changeBtn.disabled = true;
+        return;
+    }
+
+    nameStatus.textContent = 'Checking...';
+    nameStatus.className = 'name-status';
+    try {
+        const result = await api(`/api/accounts/name/${encodeURIComponent(name)}/available`);
+        if (result.error) {
+            nameStatus.textContent = result.error;
+            nameStatus.className = 'name-status name-taken';
+            changeBtn.disabled = true;
+        } else if (result.status === 'AVAILABLE') {
+            nameStatus.textContent = 'Available';
+            nameStatus.className = 'name-status name-available';
+            changeBtn.disabled = false;
+        } else if (result.status === 'DUPLICATE') {
+            nameStatus.textContent = 'Taken';
+            nameStatus.className = 'name-status name-taken';
+            changeBtn.disabled = true;
+        } else {
+            nameStatus.textContent = result.status || 'Not available';
+            nameStatus.className = 'name-status name-taken';
+            changeBtn.disabled = true;
+        }
+    } catch (e) {
+        nameStatus.textContent = 'Check failed';
+        nameStatus.className = 'name-status name-taken';
+        changeBtn.disabled = true;
+    }
+}
+
+async function changeName(id) {
+    const nameInput = document.getElementById(`nameInput-${id}`);
+    const nameStatus = document.getElementById(`nameStatus-${id}`);
+    const changeBtn = document.getElementById(`nameChangeBtn-${id}`);
+    const name = nameInput.value.trim();
+    if (!name) return;
+
+    if (!confirm(`Change username to "${name}"? This has a 30-day cooldown.`)) return;
+
+    nameStatus.textContent = 'Changing...';
+    nameStatus.className = 'name-status';
+    changeBtn.disabled = true;
+    try {
+        const res = await fetch(`/api/accounts/${id}/name`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const result = await res.json();
+        if (result.error) {
+            nameStatus.textContent = result.error;
+            nameStatus.className = 'name-status name-taken';
+            showToast(result.error);
+        } else {
+            nameStatus.textContent = `Changed to ${result.username}`;
+            nameStatus.className = 'name-status name-available';
+            showToast(`Username changed to ${result.username}`);
+            delete textureCache[id];
+            loadAccounts();
+        }
+    } catch (e) {
+        nameStatus.textContent = 'Name change failed';
+        nameStatus.className = 'name-status name-taken';
+        showToast('Name change failed');
+    }
 }
 
 // --- Actions ---
@@ -124,14 +393,21 @@ async function refreshToken(id) {
     }
 }
 
-async function deleteAccount(id) {
-    if (!confirm('Remove this account from the pool?')) return;
+async function deleteSelected() {
+    const selectedIds = [...document.querySelectorAll('.account-check:checked')].map(cb => parseInt(cb.value));
+    if (selectedIds.length === 0) return;
     try {
-        await api(`/api/accounts/${id}`, { method: 'DELETE' });
-        showToast('Account removed');
+        await Promise.all(selectedIds.map(id => {
+            expandedIds.delete(id);
+            delete textureCache[id];
+            disposeSkinViewer(id);
+            return api(`/api/accounts/${id}`, { method: 'DELETE' });
+        }));
+        showToast(`${selectedIds.length} account${selectedIds.length > 1 ? 's' : ''} removed`);
         loadAccounts();
     } catch (e) {
         showToast('Delete failed');
+        loadAccounts();
     }
 }
 
@@ -223,6 +499,7 @@ function updateSelectAllCheck() {
     document.getElementById('exportSeparator').classList.toggle('hidden', !hasSelection);
     document.getElementById('exportTxtBtn').classList.toggle('hidden', !hasSelection);
     document.getElementById('copyExportBtn').classList.toggle('hidden', !hasSelection);
+    document.getElementById('deleteSelectedBtn').classList.toggle('hidden', !hasSelection);
 }
 
 function getExportText() {
@@ -259,6 +536,171 @@ function copyExport() {
     }
     copyToClipboard(text);
     showToast('Copied to clipboard');
+}
+
+// --- Skin Preview ---
+function previewSkinFile(id) {
+    const fileInput = document.getElementById(`skinFile-${id}`);
+    const clearBtn = document.getElementById(`skinClear-${id}`);
+    const viewer = skinViewers[id];
+    if (!fileInput.files.length) {
+        clearBtn.classList.add('hidden');
+        return;
+    }
+    clearBtn.classList.remove('hidden');
+    if (!viewer) return;
+    const variantSelect = document.getElementById(`skinVariant-${id}`);
+    const model = variantSelect.value === 'slim' ? 'slim' : 'default';
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => viewer.loadSkin(img, { model });
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(fileInput.files[0]);
+}
+
+function clearSkinFile(id) {
+    const fileInput = document.getElementById(`skinFile-${id}`);
+    fileInput.value = '';
+    document.getElementById(`skinClear-${id}`).classList.add('hidden');
+    // Restore original skin
+    const data = textureCache[id];
+    const viewer = skinViewers[id];
+    if (viewer && data && data.skinUrl) {
+        viewer.loadSkin(data.skinUrl, {
+            model: data.skinModel === 'slim' ? 'slim' : 'default'
+        });
+    } else if (viewer) {
+        viewer.loadSkin(null);
+    }
+}
+
+function onVariantChange(id) {
+    const fileInput = document.getElementById(`skinFile-${id}`);
+    if (fileInput.files.length) {
+        previewSkinFile(id);
+    }
+}
+
+// --- Capes ---
+let capeCache = {}; // id -> capes array
+let activeCapeUrl = {}; // id -> current active cape url (for restoring after hover)
+
+function renderCapeList(id, capes) {
+    const container = document.getElementById(`capeList-${id}`);
+    if (!container) return;
+    if (capes.length === 0) {
+        container.innerHTML = '<span class="cape-loading">No capes</span>';
+        return;
+    }
+    container.innerHTML = capes.map(c => {
+        const active = c.state === 'ACTIVE';
+        return `<div class="cape-item ${active ? 'cape-active' : ''}"
+            onclick="equipCape(${id}, '${c.id}')"
+            onmouseenter="previewCape(${id}, '${escHtml(c.url)}')"
+            onmouseleave="restoreCape(${id})"
+            title="${escHtml(c.alias)}${active ? ' (active)' : ''}">
+            <canvas class="cape-thumb" data-cape-url="${escHtml(c.url)}" width="20" height="32"></canvas>
+            ${active ? '<div class="cape-active-dot"></div>' : ''}
+        </div>`;
+    }).join('') + `<div class="cape-item cape-hide"
+        onclick="hideCape(${id})"
+        onmouseenter="previewCape(${id}, null)"
+        onmouseleave="restoreCape(${id})"
+        title="Hide cape">
+        <div class="cape-hide-icon">&#10005;</div>
+    </div>`;
+    // Render cape front faces
+    container.querySelectorAll('.cape-thumb').forEach(canvas => {
+        renderCapeFront(canvas, canvas.dataset.capeUrl);
+    });
+}
+
+function renderCapeFront(canvas, url) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+        const scale = img.width / 64;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        canvas.width = 10 * scale;
+        canvas.height = 16 * scale;
+        ctx.drawImage(img, 1 * scale, 1 * scale, 10 * scale, 16 * scale, 0, 0, 10 * scale, 16 * scale);
+    };
+    img.src = url;
+}
+
+function previewCape(id, url) {
+    const viewer = skinViewers[id];
+    if (!viewer) return;
+    if (url) {
+        viewer.loadCape(url);
+    } else {
+        viewer.loadCape(null);
+    }
+}
+
+function restoreCape(id) {
+    const viewer = skinViewers[id];
+    if (!viewer) return;
+    if (activeCapeUrl[id]) {
+        viewer.loadCape(activeCapeUrl[id]);
+    } else {
+        viewer.loadCape(null);
+    }
+}
+
+async function equipCape(id, capeId) {
+    showToast('Changing cape...');
+    try {
+        const res = await fetch(`/api/accounts/${id}/cape`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ capeId })
+        });
+        const result = await res.json();
+        if (result.error) {
+            showToast(result.error);
+        } else {
+            showToast('Cape changed');
+            // Update active cape without recreating viewer
+            const capes = capeCache[id];
+            if (capes) {
+                capes.forEach(c => c.state = c.id === capeId ? 'ACTIVE' : 'INACTIVE');
+                const active = capes.find(c => c.id === capeId);
+                activeCapeUrl[id] = active ? active.url : null;
+                renderCapeList(id, capes);
+            }
+            delete textureCache[id];
+        }
+    } catch (e) {
+        showToast('Failed to change cape');
+    }
+}
+
+async function hideCape(id) {
+    showToast('Hiding cape...');
+    try {
+        const res = await fetch(`/api/accounts/${id}/cape`, { method: 'DELETE' });
+        const result = await res.json();
+        if (result.error) {
+            showToast(result.error);
+        } else {
+            showToast('Cape hidden');
+            const capes = capeCache[id];
+            if (capes) {
+                capes.forEach(c => c.state = 'INACTIVE');
+                activeCapeUrl[id] = null;
+                renderCapeList(id, capes);
+            }
+            const viewer = skinViewers[id];
+            if (viewer) viewer.loadCape(null);
+            delete textureCache[id];
+        }
+    } catch (e) {
+        showToast('Failed to hide cape');
+    }
 }
 
 // --- Toast ---

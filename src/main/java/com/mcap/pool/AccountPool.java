@@ -40,19 +40,36 @@ public class AccountPool {
             if (!authService.isExpired(account.getTokenExpiry())) {
                 continue;
             }
-            refreshAccount(account);
+            try {
+                refreshAccount(account);
+            } catch (Exception e) {
+                // Already logged and error state set in refreshAccount
+            }
         }
     }
 
-    public void refreshAccount(Account account) {
+    public Account ensureValidAccessToken(Account account) throws Exception {
+        if (authService.isExpired(account.getTokenExpiry())) {
+            refreshAccount(account);
+            return repo.findById(account.getId());
+        }
+        return account;
+    }
+
+    public void refreshAccount(Account account) throws Exception {
         try {
             log.info("Refreshing token for {} ({})", account.getUsername(), account.getUuid());
             AuthService.LoginResult result = authService.refresh(account.getAuthJson());
             repo.updateTokens(account.getId(), result.authJson(), result.accessToken(), result.refreshToken(), result.tokenExpiry());
+            if (result.username() != null && !result.username().equals(account.getUsername())) {
+                repo.updateUsername(account.getId(), result.username());
+                log.info("Username updated: {} -> {}", account.getUsername(), result.username());
+            }
             log.info("Successfully refreshed token for {}", result.username());
         } catch (Exception e) {
             log.error("Failed to refresh token for {} ({}): {}", account.getUsername(), account.getUuid(), e.getMessage());
             repo.setError(account.getId());
+            throw e;
         }
     }
 }

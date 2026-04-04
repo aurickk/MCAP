@@ -2,8 +2,10 @@ package com.mcap.api;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mcap.auth.AuthService;
 import com.mcap.db.AccountRepository;
+import com.mcap.minecraft.MinecraftProfileService;
 import com.mcap.model.Account;
 import com.mcap.pool.AccountPool;
 import io.javalin.Javalin;
@@ -20,12 +22,14 @@ public class ApiRoutes {
     private final AccountRepository repo;
     private final AccountPool pool;
     private final AuthService authService;
+    private final MinecraftProfileService profileService;
     private final Gson gson = new Gson();
 
-    public ApiRoutes(AccountRepository repo, AccountPool pool, AuthService authService) {
+    public ApiRoutes(AccountRepository repo, AccountPool pool, AuthService authService, MinecraftProfileService profileService) {
         this.repo = repo;
         this.pool = pool;
         this.authService = authService;
+        this.profileService = profileService;
     }
 
     public void register(Javalin app) {
@@ -33,6 +37,14 @@ public class ApiRoutes {
         app.delete("/api/accounts/{id}", this::deleteAccount);
         app.post("/api/accounts/{id}/refresh", this::refreshAccount);
         app.sse("/api/accounts/login", this::loginSse);
+        app.get("/api/accounts/{id}/profile", this::getProfile);
+        app.get("/api/accounts/{id}/skin-image", this::getSkinImage);
+        app.get("/api/accounts/{id}/cape-image", this::getCapeImage);
+        app.post("/api/accounts/{id}/skin", this::uploadSkin);
+        app.put("/api/accounts/{id}/cape", this::equipCape);
+        app.delete("/api/accounts/{id}/cape", this::hideCape);
+        app.get("/api/accounts/name/{name}/available", this::checkNameAvailability);
+        app.put("/api/accounts/{id}/name", this::changeName);
     }
 
     private void listAccounts(Context ctx) {
@@ -100,6 +112,149 @@ public class ApiRoutes {
                 client.close();
             }
         });
+    }
+
+    private void getProfile(Context ctx) {
+        int id = Integer.parseInt(ctx.pathParam("id"));
+        Account account = repo.findById(id);
+        if (account == null) {
+            ctx.status(404).json(Map.of("error", "Account not found"));
+            return;
+        }
+        try {
+            account = pool.ensureValidAccessToken(account);
+            MinecraftProfileService.ProfileData profile = profileService.fetchProfile(account.getAccessToken());
+            // Sync username if changed externally
+            if (profile.username() != null && !profile.username().equals(account.getUsername())) {
+                repo.updateUsername(id, profile.username());
+            }
+            ctx.json(Map.of(
+                "skinUrl", profile.skinUrl() != null ? profile.skinUrl() : "",
+                "skinModel", profile.skinModel(),
+                "capes", profile.capes()
+            ));
+        } catch (Exception e) {
+            ctx.status(500).json(Map.of("error", "Failed to fetch profile: " + e.getMessage()));
+        }
+    }
+
+    private void getSkinImage(Context ctx) {
+        proxyTextureImage(ctx, "skin");
+    }
+
+    private void getCapeImage(Context ctx) {
+        proxyTextureImage(ctx, "cape");
+    }
+
+    private void proxyTextureImage(Context ctx, String type) {
+        String url = ctx.queryParam("url");
+        if (url == null || url.isEmpty()) {
+            ctx.status(400).result("Missing url parameter");
+            return;
+        }
+        try {
+            byte[] image = profileService.fetchTextureImage(url);
+            ctx.header("Access-Control-Allow-Origin", "*");
+            ctx.contentType("image/png").result(image);
+        } catch (IllegalArgumentException e) {
+            ctx.status(400).result(e.getMessage());
+        } catch (Exception e) {
+            log.error("Failed to fetch {} image: {}", type, e.getMessage());
+            ctx.status(500).result("Failed to fetch " + type + ": " + e.getMessage());
+        }
+    }
+
+    private void uploadSkin(Context ctx) {
+        int id = Integer.parseInt(ctx.pathParam("id"));
+        Account account = repo.findById(id);
+        if (account == null) {
+            ctx.status(404).json(Map.of("error", "Account not found"));
+            return;
+        }
+        try {
+            account = pool.ensureValidAccessToken(account);
+            var uploadedFile = ctx.uploadedFile("file");
+            if (uploadedFile == null) {
+                ctx.status(400).json(Map.of("error", "No skin file provided"));
+                return;
+            }
+            byte[] pngBytes = uploadedFile.content().readAllBytes();
+            String variant = ctx.formParam("variant");
+            profileService.uploadSkin(account.getAccessToken(), pngBytes, variant);
+            ctx.json(Map.of("ok", true));
+        } catch (Exception e) {
+            ctx.status(500).json(Map.of("error", "Skin upload failed: " + e.getMessage()));
+        }
+    }
+
+    private void equipCape(Context ctx) {
+        int id = Integer.parseInt(ctx.pathParam("id"));
+        Account account = repo.findById(id);
+        if (account == null) {
+            ctx.status(404).json(Map.of("error", "Account not found"));
+            return;
+        }
+        try {
+            account = pool.ensureValidAccessToken(account);
+            JsonObject body = JsonParser.parseString(ctx.body()).getAsJsonObject();
+            String capeId = body.get("capeId").getAsString();
+            profileService.equipCape(account.getAccessToken(), capeId);
+            ctx.json(Map.of("ok", true));
+        } catch (Exception e) {
+            ctx.status(500).json(Map.of("error", "Failed to equip cape: " + e.getMessage()));
+        }
+    }
+
+    private void hideCape(Context ctx) {
+        int id = Integer.parseInt(ctx.pathParam("id"));
+        Account account = repo.findById(id);
+        if (account == null) {
+            ctx.status(404).json(Map.of("error", "Account not found"));
+            return;
+        }
+        try {
+            account = pool.ensureValidAccessToken(account);
+            profileService.hideCape(account.getAccessToken());
+            ctx.json(Map.of("ok", true));
+        } catch (Exception e) {
+            ctx.status(500).json(Map.of("error", "Failed to hide cape: " + e.getMessage()));
+        }
+    }
+
+    private void checkNameAvailability(Context ctx) {
+        String name = ctx.pathParam("name");
+        try {
+            // Need a valid access token from any account for this API call
+            List<Account> allAccounts = repo.findAll();
+            if (allAccounts.isEmpty()) {
+                ctx.status(400).json(Map.of("error", "No accounts available for API authentication"));
+                return;
+            }
+            Account account = pool.ensureValidAccessToken(allAccounts.getFirst());
+            MinecraftProfileService.NameAvailability result = profileService.checkNameAvailability(account.getAccessToken(), name);
+            ctx.json(Map.of("status", result.status()));
+        } catch (Exception e) {
+            ctx.status(500).json(Map.of("error", "Name check failed: " + e.getMessage()));
+        }
+    }
+
+    private void changeName(Context ctx) {
+        int id = Integer.parseInt(ctx.pathParam("id"));
+        Account account = repo.findById(id);
+        if (account == null) {
+            ctx.status(404).json(Map.of("error", "Account not found"));
+            return;
+        }
+        try {
+            account = pool.ensureValidAccessToken(account);
+            JsonObject body = JsonParser.parseString(ctx.body()).getAsJsonObject();
+            String newName = body.get("name").getAsString();
+            profileService.changeName(account.getAccessToken(), newName);
+            repo.updateUsername(id, newName);
+            ctx.json(Map.of("ok", true, "username", newName));
+        } catch (Exception e) {
+            ctx.status(500).json(Map.of("error", "Name change failed: " + e.getMessage()));
+        }
     }
 
     private Map<String, Object> toSafeMap(Account a) {
