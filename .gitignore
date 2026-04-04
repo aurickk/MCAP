@@ -11,7 +11,26 @@ gradle.properties
 
 # Database
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sql
+*.mv.db
+*.h2.db
 data/
+
+# Local secrets / exports
+mcap-export*.txt
+*.token
+*.tokens
+*.session
+secrets.*
+credentials.*
+*.key
+*.pem
 
 # OS
 .DS_Store
