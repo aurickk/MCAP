@@ -11,7 +11,7 @@ A lightweight and simple self-hosted Minecraft account pool manager. Sign in wit
 ## Features
 
 - Microsoft device code login flow
-- Automatically detect expire every 30 minutes and refresh them
+- Automatically detect expired tokens every 30 minutes and refresh them
 - Copy session and refresh tokens per account
 - Export accounts as `sessiontoken:refreshtoken` per line
 - REST API for programmatic access
@@ -34,8 +34,8 @@ A lightweight and simple self-hosted Minecraft account pool manager. Sign in wit
 
 1. Clone the repository:
    ```
-   git clone https://github.com/your-username/mcap.git
-   cd mcap
+   git clone https://github.com/your-username/MCAP.git
+   cd MCAP
    ```
 
 2. Build and start the container:
