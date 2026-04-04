@@ -1,0 +1,11 @@
+services:
+  mcap:
+    build: .
+    ports:
+      - "7070:7070"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - MCAP_DB=/app/data/mcap.db
+      - MCAP_REFRESH_MINUTES=30
+    restart: unless-stopped
