@@ -24,7 +24,7 @@ A lightweight and simple self-hosted Minecraft account pool manager. Sign in wit
 
 ## Tech Stack
 
-- **Backend:** Java 21, [Javalin](https://javalin.io/), [MinecraftAuth](https://github.com/RaphiMC/MinecraftAuth)
+- **Backend:** Java 25, [Javalin](https://javalin.io/), [MinecraftAuth](https://github.com/RaphiMC/MinecraftAuth)
 - **Frontend:** Vanilla HTML/CSS/JS
 - **Database:** SQLite
 - **Build:** Gradle
@@ -57,7 +57,7 @@ To stop: `docker compose down`
 
 ### JAR
 
-Requires [Java 21](https://adoptium.net/) or later.
+Requires [Java 25](https://adoptium.net/) or later.
 
 1. Download `mcap-<version>.jar` from the [latest release](https://github.com/Aurickk/mcap/releases/latest)
 
