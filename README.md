@@ -40,7 +40,7 @@
        ports:
          - "7070:7070"
        volumes:
-         - mcap-data:/app/data
+         - ./data:/app/data
    ```
 
 2. Start the container:
