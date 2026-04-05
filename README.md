@@ -1,11 +1,10 @@
-# MCAP - Minecraft Account Pooler
+<h1 align="center">MCAP - Minecraft Account Pooler</h1>
 
-A lightweight and simple self-hosted Minecraft account pool manager. Sign in with Microsoft accounts, store tokens, and keep them fresh automatically, all accessible from a web dashboard.
+<p align="center">A lightweight and simple self-hosted Minecraft account pool manager. Sign in with Microsoft accounts, store tokens, and keep them fresh automatically. All accessible from a web interface.</p>
 
-<img width="1220" height="692" alt="screenshot" src="https://github.com/user-attachments/assets/78de3228-4e07-4645-b40a-09d3947df51e" />
+<img width="1692" height="1085" alt="image" src="https://github.com/user-attachments/assets/cbe074f5-3cd8-4803-b8b7-f5d7c0d49e75" />
 
-
-> [!NOTE]
+> [!IMPORTANT]
 > This is designed for single-user, local use. There is no authentication or input sanitization. Do not expose this to the public internet.
 
 ## Features
@@ -14,13 +13,13 @@ A lightweight and simple self-hosted Minecraft account pool manager. Sign in wit
 - Import accounts via refresh tokens (single or bulk)
 - Automatically refresh expired tokens every 30 minutes
 - Copy session and refresh tokens per account
-- Export accounts as `sessiontoken:refreshtoken` per line
+- Export selected accounts as `sessiontoken:refreshtoken` per line
 - 3D skin viewer with live preview
 - Skin uploading (classic/slim)
 - Cape management (equip, hide, preview on hover)
 - Username changing with availability check
 - REST API for programmatic access
-- Dark-themed web dashboard
+- Dark-themed web interface
 
 ## Tech Stack
 
@@ -42,8 +41,6 @@ A lightweight and simple self-hosted Minecraft account pool manager. Sign in wit
          - "7070:7070"
        volumes:
          - mcap-data:/app/data
-   volumes:
-     mcap-data:
    ```
 
 2. Start the container:
@@ -68,12 +65,12 @@ Requires [Java 25](https://adoptium.net/) or later.
 
 3. Open http://localhost:7070
 
-### Build from source
+### Build and run from source
 
 1. Clone the repository:
    ```
-   git clone https://github.com/Aurickk/mcap.git
-   cd mcap
+   git clone https://github.com/Aurickk/MCAP.git
+   cd MCAP
    ```
 
 2. Build and run:
