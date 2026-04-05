@@ -89,6 +89,21 @@ h1 {
     font-size: 13px;
 }
 
+.version {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.update-link {
+    font-size: 11px;
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.update-link:hover {
+    text-decoration: underline;
+}
+
 .account-count {
     font-size: 12px;
     color: var(--accent);
@@ -540,8 +555,8 @@ td:last-child {
 .btn-expand:hover { color: var(--text); }
 .btn-expand.expanded { transform: rotate(90deg); }
 
-/* Account row before detail row — detail row handles the border */
-.account-row td {
+/* Account row before detail row — only remove border when detail is expanded */
+.account-row.expanded td {
     border-bottom: none;
 }
 

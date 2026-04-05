@@ -33,6 +33,7 @@ public class ApiRoutes {
     }
 
     public void register(Javalin app) {
+        app.get("/api/version", ctx -> ctx.json(Map.of("version", getVersion())));
         app.get("/api/accounts", this::listAccounts);
         app.delete("/api/accounts/{id}", this::deleteAccount);
         app.post("/api/accounts/{id}/refresh", this::refreshAccount);
@@ -319,6 +320,11 @@ public class ApiRoutes {
         } catch (Exception e) {
             ctx.status(500).json(Map.of("error", "Name change failed: " + e.getMessage()));
         }
+    }
+
+    private String getVersion() {
+        String version = getClass().getPackage().getImplementationVersion();
+        return version != null ? version : "dev";
     }
 
     private Map<String, Object> toSafeMap(Account a) {

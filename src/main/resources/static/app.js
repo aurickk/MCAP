@@ -8,6 +8,12 @@ let initialLoad = true;
 
 // --- Init ---
 document.addEventListener('DOMContentLoaded', () => {
+    api('/api/version').then(data => {
+        if (data.version) {
+            document.getElementById('appVersion').textContent = 'v' + data.version;
+            checkForUpdate(data.version);
+        }
+    }).catch(() => {});
     loadAccounts();
     refreshTimer = setInterval(() => {
         if (expandedIds.size === 0) {
@@ -56,7 +62,7 @@ function renderAccounts() {
         const headUrl = `https://mc-heads.net/avatar/${a.uuid}/28`;
         const expiry = formatExpiry(a.tokenExpiry);
         const isExpanded = expandedIds.has(a.id);
-        return `<tr class="account-row">
+        return `<tr class="account-row ${isExpanded ? 'expanded' : ''}">
             <td class="checkbox-col">
                 <input type="checkbox" class="account-check" value="${a.id}" onchange="updateSelectAllCheck()">
             </td>
@@ -171,11 +177,13 @@ function toggleExpand(id) {
         expandedIds.delete(id);
         detailRow.classList.add('hidden');
         btn.classList.remove('expanded');
+        mainRow.classList.remove('expanded');
         disposeSkinViewer(id);
     } else {
         expandedIds.add(id);
         detailRow.classList.remove('hidden');
         btn.classList.add('expanded');
+        mainRow.classList.add('expanded');
         loadProfile(id);
     }
 }
@@ -848,6 +856,34 @@ document.addEventListener('click', (e) => {
     // Close all open selects on outside click
     document.querySelectorAll('.custom-select.open').forEach(el => el.classList.remove('open'));
 });
+
+// --- Update Check ---
+function checkForUpdate(currentVersion) {
+    if (currentVersion === 'dev') return;
+    fetch('https://api.github.com/repos/Aurickk/mcap/releases/latest')
+        .then(res => res.json())
+        .then(data => {
+            if (!data.tag_name) return;
+            const latest = data.tag_name.replace(/^v/i, '');
+            if (latest !== currentVersion && isNewer(latest, currentVersion)) {
+                const link = document.getElementById('updateLink');
+                link.textContent = '(update available)';
+                link.href = data.html_url;
+                link.classList.remove('hidden');
+            }
+        })
+        .catch(() => {});
+}
+
+function isNewer(latest, current) {
+    const a = latest.split('.').map(Number);
+    const b = current.split('.').map(Number);
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if ((a[i] || 0) > (b[i] || 0)) return true;
+        if ((a[i] || 0) < (b[i] || 0)) return false;
+    }
+    return false;
+}
 
 // --- Toast ---
 let toastTimer;
