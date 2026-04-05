@@ -25,7 +25,7 @@ A lightweight and simple self-hosted Minecraft account pool manager. Sign in wit
 ## Tech Stack
 
 - **Backend:** Java 25, [Javalin](https://javalin.io/), [MinecraftAuth](https://github.com/RaphiMC/MinecraftAuth)
-- **Frontend:** Vanilla HTML/CSS/JS
+- **Frontend:** Vanilla HTML/CSS/JS, [skinview3d](https://github.com/bs-community/skinview3d)
 - **Database:** SQLite
 - **Build:** Gradle
 
